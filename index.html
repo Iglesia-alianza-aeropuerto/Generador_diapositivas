@@ -119,11 +119,14 @@ let seleccionadas = [];
 // 🔥 FETCH ROBUSTO (SOLUCIONA RENDER)
 async function cargarCancionesDesdeBackend() {
   try {
-    let res = await fetch("/canciones");
-    if (!res.ok) throw new Error("Backend error");
+    let res = await fetch("https://diapositivas-iglesia.onrender.com/canciones");
+
+    if (!res.ok) throw new Error("Error backend");
+
     return await res.json();
+
   } catch (err) {
-    console.error("Error backend:", err);
+    console.error("Error:", err);
     return [];
   }
 }
