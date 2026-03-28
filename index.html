@@ -52,6 +52,9 @@
 
 <h1>🎶 Generador de Culto</h1>
 
+<!-- 🔐 PASSWORD -->
+<input type="password" id="adminPass" placeholder="Contraseña admin" style="padding:10px; border-radius:10px; border:none;">
+
 <input 
   type="text" 
   id="buscador" 
@@ -76,10 +79,14 @@
   <button onclick="generarPPT()">Generar</button>
   <button onclick="preview()">Preview</button>
   <button onclick="limpiarSeleccion()">Limpiar</button>
+  <button onclick="mostrarEliminar()">Eliminar</button>
 </div>
 
 <div id="seleccionadasUI" style="margin:10px;"></div>
 <div id="previewContainer" style="max-width:800px; margin:auto;"></div>
+
+<!-- 🗑️ UI ELIMINAR -->
+<div id="eliminarUI" style="display:none; margin:20px;"></div>
 
 <hr>
 
@@ -87,9 +94,9 @@
 <input type="file" id="fileInput">
 <button onclick="subirArchivo()">Subir canción</button>
 
-<h3>🚀 Carga masiva (temporal)</h3>
+<h3>🚀 Carga masiva</h3>
 <input type="file" id="folderInput" webkitdirectory multiple>
-<button onclick="subirCarpeta()">Subir carpeta completa</button>
+<button onclick="subirCarpeta()">Subir carpeta</button>
 
 <script>
 
@@ -114,16 +121,9 @@ let canciones = [];
 let cancionesFiltradas = [];
 let seleccionadas = [];
 
-// 🔥 FETCH ROBUSTO
 async function cargarCancionesDesdeBackend() {
-  try {
-    let res = await fetch("/canciones");
-    if (!res.ok) throw new Error("Error backend");
-    return await res.json();
-  } catch (err) {
-    console.error("Error cargando canciones:", err);
-    return [];
-  }
+  let res = await fetch("/canciones");
+  return await res.json();
 }
 
 async function iniciarApp() {
@@ -205,64 +205,70 @@ function extraerNumero(texto) {
   return m ? parseInt(m[0]) : 9999;
 }
 
-// 🔥 SUBIR ARCHIVO
+// 🔥 SUBIR
 async function subirArchivo() {
+
+  let password = document.getElementById("adminPass").value;
+  if (!password) return alert("Ingresa contraseña");
+
   let file = document.getElementById("fileInput").files[0];
   if (!file) return alert("Selecciona archivo");
 
+  const existe = canciones.some(c => c.titulo.toLowerCase() === file.name.toLowerCase());
+
+  let replace = false;
+  if (existe) {
+    replace = confirm("Ya existe ¿Reemplazar?");
+  }
+
   let formData = new FormData();
   formData.append("archivo", file);
+  formData.append("password", password);
+  formData.append("replace", replace);
 
-  let res = await fetch("/upload", {
-    method: "POST",
-    body: formData
-  });
-
+  let res = await fetch("/upload", { method:"POST", body:formData });
   let data = await res.json();
+
   if (!res.ok) return alert(data.error);
 
-  alert("✅ Canción subida");
+  alert("Proceso completado");
   iniciarApp();
 }
 
-// 🔥 SUBIDA MASIVA
-async function subirCarpeta() {
-  let files = document.getElementById("folderInput").files;
-  if (files.length === 0) return alert("Selecciona carpeta");
+// 🔥 ELIMINAR UI
+function mostrarEliminar() {
 
-  let formData = new FormData();
-  for (let f of files) {
-    formData.append("archivo", f);
-  }
+  const cont = document.getElementById("eliminarUI");
+  cont.style.display = "block";
 
-  let res = await fetch("/upload-multiple", {
-    method: "POST",
-    body: formData
+  cont.innerHTML = canciones.map(c => `
+    <div style="margin:5px;">
+      ${c.titulo}
+      <button onclick="eliminarCancion(${c.id})">Eliminar</button>
+    </div>
+  `).join("");
+}
+
+async function eliminarCancion(id) {
+
+  let password = document.getElementById("adminPass").value;
+  if (!password) return alert("Ingresa contraseña");
+
+  let ok = confirm("¿Eliminar?");
+  if (!ok) return;
+
+  let res = await fetch("/eliminar/" + id, {
+    method:"DELETE",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ password })
   });
 
   let data = await res.json();
-  alert("🚀 Carga masiva completa");
+
+  if (!res.ok) return alert(data.error);
+
+  alert("Eliminado");
   iniciarApp();
-}
-
-// 🔥 PREVIEW
-function preview() {
-  const cont = document.getElementById("previewContainer");
-
-  if (cont.innerHTML !== "") {
-    cont.innerHTML = "";
-    return;
-  }
-
-  seleccionadas.forEach(i => {
-    let c = canciones[i];
-
-    cont.innerHTML += `<h3>${c.titulo}</h3>`;
-
-    c.slides.forEach(t => {
-      cont.innerHTML += `<div>${t.replace(/\n/g,"<br>")}</div>`;
-    });
-  });
 }
 
 // 🔥 PPT
@@ -285,11 +291,17 @@ function generarPPT() {
 
       if(index===0){
         slide.addText([
-          {text:lineas[0]+"\n",options:{fontSize:60,bold:true,italic:true,color:"D33D05"}},
-          {text:lineas.slice(1).join("\n"),options:{fontSize:88,color:"632423"}}
+          {text:lineas[0]+"\n",options:{fontFace:"Constantia",fontSize:60,bold:true,italic:true,color:"D33D05",align:"center"}},
+          {text:lineas.slice(1).join("\n"),options:{fontFace:"Constantia",fontSize:88,color:"632423",align:"center"}}
         ],{x:2,y:2,w:16,h:7,align:"center"});
       } else {
-        slide.addText(texto,{x:2,y:2,w:16,h:7,align:"center",fontSize:88,color:"632423"});
+        slide.addText(texto,{
+          x:2,y:2,w:16,h:7,
+          align:"center",
+          fontFace:"Constantia",
+          fontSize:88,
+          color:"632423"
+        });
       }
 
     });
