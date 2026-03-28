@@ -15,14 +15,14 @@
     }
 
     .container {
-  max-width: 500px;
-  margin: auto;
-  height: 300px;       /* 🔥 altura fija */
-  overflow-y: auto;    /* 🔥 scroll SOLO aquí */
-  border: 1px solid #334155;
-  border-radius: 10px;
-  padding: 10px;
-}
+      max-width: 500px;
+      margin: auto;
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px;
+    }
 
     .song {
       background: #1e293b;
@@ -52,7 +52,6 @@
 
 <h1>🎶 Generador de Culto</h1>
 
-<!-- 🔎 BUSCADOR -->
 <input 
   type="text" 
   id="buscador" 
@@ -63,7 +62,6 @@
 
 <br>
 
-<!-- 📊 ORDEN -->
 <select onchange="ordenarCanciones(this.value)" style="padding:10px; border-radius:10px;">
   <option value="default">Ordenar</option>
   <option value="az">A-Z</option>
@@ -74,27 +72,21 @@
 
 <div class="container" id="songList"></div>
 
-<div style="
-  position: sticky;
-  bottom: 0;
-  background: #0f172a;
-  padding: 10px;
-">
+<div style="position: sticky; bottom: 0; background: #0f172a; padding: 10px;">
   <button onclick="generarPPT()">Generar</button>
   <button onclick="preview()">Preview</button>
   <button onclick="limpiarSeleccion()">Limpiar</button>
 </div>
+
 <div id="seleccionadasUI" style="margin:10px;"></div>
 <div id="previewContainer" style="max-width:800px; margin:auto;"></div>
 
 <hr>
 
-<!-- 🔹 SUBIDA NORMAL -->
 <h3>Subir canción individual</h3>
 <input type="file" id="fileInput">
 <button onclick="subirArchivo()">Subir canción</button>
 
-<!-- 🔥 SUBIDA MASIVA -->
 <h3>🚀 Carga masiva (temporal)</h3>
 <input type="file" id="folderInput" webkitdirectory multiple>
 <button onclick="subirCarpeta()">Subir carpeta completa</button>
@@ -122,19 +114,28 @@ let canciones = [];
 let cancionesFiltradas = [];
 let seleccionadas = [];
 
+// 🔥 FETCH ROBUSTO
 async function cargarCancionesDesdeBackend() {
-  let res = await fetch("/canciones");
-  return await res.json();
+  try {
+    let res = await fetch("/canciones");
+    if (!res.ok) throw new Error("Error backend");
+    return await res.json();
+  } catch (err) {
+    console.error("Error cargando canciones:", err);
+    return [];
+  }
 }
 
-function iniciarApp() {
+async function iniciarApp() {
   seleccionadas = [];
   document.getElementById("buscador").value = "";
-  cargarCancionesDesdeBackend().then(data => {
-    canciones = [...cancionesLocales, ...data];
-    cancionesFiltradas = [...canciones];
-    mostrarCanciones();
-  });
+
+  const data = await cargarCancionesDesdeBackend();
+
+  canciones = [...cancionesLocales, ...data];
+  cancionesFiltradas = [...canciones];
+
+  mostrarCanciones();
 }
 
 function mostrarCanciones() {
@@ -147,22 +148,20 @@ function mostrarCanciones() {
     div.innerText = c.titulo;
 
     const realIndex = canciones.indexOf(c);
+
     if (seleccionadas.includes(realIndex)) {
       div.classList.add("selected");
     }
 
     div.onclick = () => {
       if (seleccionadas.includes(realIndex)) {
-        // ❌ si ya estaba → quitarlo
         seleccionadas = seleccionadas.filter(i => i !== realIndex);
-        div.classList.remove("selected");
       } else {
-        // ✅ agregar al FINAL → respeta orden de clic
         seleccionadas.push(realIndex);
-        div.classList.add("selected");
       }
 
       actualizarSeleccionUI();
+      mostrarCanciones();
     };
 
     contenedor.appendChild(div);
@@ -172,22 +171,15 @@ function mostrarCanciones() {
 function actualizarSeleccionUI() {
   const cont = document.getElementById("seleccionadasUI");
 
-  if (seleccionadas.length === 0) {
-    cont.innerHTML = "No hay canciones seleccionadas";
-    return;
-  }
-
-  cont.innerHTML = seleccionadas.map(i => canciones[i]?.titulo || "(desconocido)").join(" ➜ ");
+  cont.innerHTML = seleccionadas.length === 0
+    ? "No hay canciones seleccionadas"
+    : seleccionadas.map(i => canciones[i]?.titulo).join(" ➜ ");
 }
 
 function limpiarSeleccion() {
   seleccionadas = [];
-
-  document.querySelectorAll(".song").forEach(el => {
-    el.classList.remove("selected");
-  });
-
   actualizarSeleccionUI();
+  mostrarCanciones();
 }
 
 function filtrarCanciones() {
@@ -213,24 +205,13 @@ function extraerNumero(texto) {
   return m ? parseInt(m[0]) : 9999;
 }
 
-// 🚀 SUBIDA INDIVIDUAL
+// 🔥 SUBIR ARCHIVO
 async function subirArchivo() {
   let file = document.getElementById("fileInput").files[0];
   if (!file) return alert("Selecciona archivo");
 
-  const existente = canciones.some(c => c.titulo && c.titulo.toLowerCase().trim() === file.name.toLowerCase().trim());
-  let replaceExisting = false;
-
-  if (existente) {
-    replaceExisting = confirm(`La canción "${file.name}" ya existe. ¿Deseas reemplazarla?\nAceptar = Reemplazar, Cancelar = No subir`);
-    if (!replaceExisting) {
-      return alert("Subida cancelada: la canción ya existe y no se reemplazó.");
-    }
-  }
-
   let formData = new FormData();
   formData.append("archivo", file);
-  formData.append("replace", replaceExisting ? "true" : "false");
 
   let res = await fetch("/upload", {
     method: "POST",
@@ -238,38 +219,21 @@ async function subirArchivo() {
   });
 
   let data = await res.json();
-  if (!res.ok) return alert(data.error || "Error en la carga");
+  if (!res.ok) return alert(data.error);
 
-  let mensaje = `✅ ${data.added.length ? data.added.length + ' agregada(s).' : ''}`;
-  if (data.replaced?.length) mensaje += ` Reemplazada(s): ${data.replaced.join(', ')}.`;
-  alert(mensaje);
+  alert("✅ Canción subida");
   iniciarApp();
 }
 
-// 🚀 SUBIDA MASIVA
+// 🔥 SUBIDA MASIVA
 async function subirCarpeta() {
   let files = document.getElementById("folderInput").files;
   if (files.length === 0) return alert("Selecciona carpeta");
 
   let formData = new FormData();
-  let anyReplace = false;
-  let archivosParaSubir = 0;
-
   for (let f of files) {
-    const existente = canciones.some(c => c.titulo && c.titulo.toLowerCase().trim() === f.name.toLowerCase().trim());
-    if (existente) {
-      const reemplazar = confirm(`La canción "${f.name}" ya existe. ¿Deseas reemplazarla?\nAceptar = Reemplazar, Cancelar = Omitir`);
-      if (!reemplazar) continue;
-      anyReplace = true;
-    }
-
     formData.append("archivo", f);
-    archivosParaSubir++;
   }
-
-  if (archivosParaSubir === 0) return alert("No hay archivos para subir (todos omitidos o no seleccionados).");
-
-  formData.append("replace", anyReplace ? "true" : "false");
 
   let res = await fetch("/upload-multiple", {
     method: "POST",
@@ -277,55 +241,32 @@ async function subirCarpeta() {
   });
 
   let data = await res.json();
-  if (!res.ok) return alert(data.error || "Error en carga masiva");
-
-  let mensaje = `🚀 Carpeta procesada. Agregadas: ${data.added.length}, Reemplazadas: ${data.replaced.length}, Omitidas: ${data.skipped.length}`;
-  if (data.errors?.length) mensaje += `, Errores: ${data.errors.length}`;
-
-  alert(mensaje);
+  alert("🚀 Carga masiva completa");
   iniciarApp();
 }
 
-// 🎬 PREVIEW
+// 🔥 PREVIEW
 function preview() {
-  const contenedor = document.getElementById("previewContainer");
+  const cont = document.getElementById("previewContainer");
 
-  // Toggle: si ya hay contenido lo quitamos
-  if (contenedor.innerHTML.trim().length > 0) {
-    contenedor.innerHTML = "";
+  if (cont.innerHTML !== "") {
+    cont.innerHTML = "";
     return;
   }
-
-  if (seleccionadas.length === 0) {
-    contenedor.innerHTML = "<p>No has seleccionado canciones</p>";
-    return;
-  }
-
-  contenedor.innerHTML += crearBloque("🎬 INICIO");
 
   seleccionadas.forEach(i => {
     let c = canciones[i];
 
-    contenedor.innerHTML += crearBloque("🎵 " + c.titulo);
+    cont.innerHTML += `<h3>${c.titulo}</h3>`;
 
-    c.slides.forEach((t, idx) => {
-      contenedor.innerHTML += `
-      <div style="background:#1e293b;margin:10px;padding:10px;border-radius:10px">
-      <b>Slide ${idx+1}</b><br>${t.replace(/\n/g,"<br>")}
-      </div>`;
+    c.slides.forEach(t => {
+      cont.innerHTML += `<div>${t.replace(/\n/g,"<br>")}</div>`;
     });
-
-    contenedor.innerHTML += crearBloque("🎬 INTERMEDIO");
   });
 }
 
-function crearBloque(t) {
-  return `<div style="background:#3b82f6;margin:10px;padding:10px;border-radius:10px">${t}</div>`;
-}
-
-// 🎯 GENERAR PPT
+// 🔥 PPT
 function generarPPT() {
-
   let pptx = new PptxGenJS();
   pptx.defineLayout({ name:"CUSTOM", width:20, height:11.25 });
   pptx.layout="CUSTOM";
@@ -333,35 +274,22 @@ function generarPPT() {
   let inicio = pptx.addSlide();
   inicio.addImage({ data:intermedio,x:0,y:0,w:20,h:11.25 });
 
-  let seleccion = seleccionadas.map(i => canciones[i]).filter(Boolean);
-
-  seleccion.forEach(c => {
+  seleccionadas.map(i => canciones[i]).forEach(c => {
 
     c.slides.forEach((texto,index)=>{
 
       let slide = pptx.addSlide();
-
       slide.addImage({ data:plantilla,x:0,y:0,w:20,h:11.25 });
 
       let lineas = texto.split("\n");
 
       if(index===0){
-
         slide.addText([
-          {text:lineas[0]+"\n",options:{fontFace:"Constantia",fontSize:60,bold:true,italic:true,color:"D33D05",align:"center"}},
-          {text:lineas.slice(1).join("\n"),options:{fontFace:"Constantia",fontSize:88,color:"632423",align:"center"}}
+          {text:lineas[0]+"\n",options:{fontSize:60,bold:true,italic:true,color:"D33D05"}},
+          {text:lineas.slice(1).join("\n"),options:{fontSize:88,color:"632423"}}
         ],{x:2,y:2,w:16,h:7,align:"center"});
-
-      }else{
-
-        slide.addText(texto,{
-          x:2,y:2,w:16,h:7,
-          align:"center",
-          fontFace:"Constantia",
-          fontSize:88,
-          color:"632423"
-        });
-
+      } else {
+        slide.addText(texto,{x:2,y:2,w:16,h:7,align:"center",fontSize:88,color:"632423"});
       }
 
     });
