@@ -322,7 +322,9 @@ app.get("/canciones", (req, res) => {
 // 🚀 iniciar servidor
 //
 const PORT = process.env.PORT || 3000;
-
+app.get("/test-db", (req, res) => {
+  res.json({ mensaje: "Servidor funcionando correctamente 🚀" });
+});
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });
