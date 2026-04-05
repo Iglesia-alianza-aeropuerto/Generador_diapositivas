@@ -75,7 +75,12 @@
 
 <div class="container" id="songList"></div>
 
-<div style="position: sticky; bottom: 0; background: #0f172a; padding: 10px; display:flex; gap:8px; flex-wrap:wrap;">
+<div style="position: sticky; bottom: 0; background: #0f172a; padding: 10px; display:flex; gap:8px; flex-wrap:wrap; justify-content: center; align-items: center;">
+  <select id="formatoPPT" style="padding: 8px 12px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #334155; font-weight: bold; cursor: pointer;">
+    <option value="presencial">Presencial</option>
+    <option value="facebook">Facebook</option>
+    <option value="ambas">Ambas</option>
+  </select>
   <button onclick="generarPPT()" style="background:#16a34a;">🎞️ Generar PPT</button>
   <button onclick="preview()" style="background:#2563eb;">👁️ Preview</button>
   <button onclick="limpiarSeleccion()" style="background:#ca8a04;">🧹 Limpiar</button>
@@ -539,7 +544,6 @@ function filtrarEliminar() {
       ${c.titulo}
       <br>
       <button onclick="eliminarCancion('${c.id}')" style="background:#ef4444; margin-top:5px;">Eliminar</button>
-      <button onclick="cargarParaEditar('${c.id}')" style="background:#f59e0b; margin-top:5px;">Editar Texto</button>
     </div>
   `).join("");
 }
@@ -566,8 +570,27 @@ async function eliminarCancion(id) {
   iniciarApp();
 }
 
-// 🔥 PPT (CONSTANTIA FORZADA)
+// 🔥 MÚLTIPLES FORMATOS DE PPT
 function generarPPT() {
+  if (seleccionadas.length === 0) {
+    alert("Por favor, selecciona al menos una canción.");
+    return;
+  }
+
+  const formato = document.getElementById("formatoPPT").value;
+
+  if (formato === "presencial" || formato === "ambas") {
+    generarPPTPresencial(formato === "ambas" ? "culto_presencial.pptx" : "culto.pptx");
+  }
+
+  if (formato === "facebook" || formato === "ambas") {
+    // Stub para el nuevo formato
+    alert("🪧 El formato para Facebook estará disponible próximamente.");
+  }
+}
+
+// 🔥 PPT PRESENCIAL (CONSTANTIA FORZADA)
+function generarPPTPresencial(fileName) {
   let pptx = new PptxGenJS();
   pptx.defineLayout({ name:"CUSTOM", width:20, height:11.25 });
   pptx.layout="CUSTOM";
@@ -606,7 +629,7 @@ function generarPPT() {
 
   });
 
-  pptx.writeFile({ fileName:"culto.pptx" });
+  pptx.writeFile({ fileName: fileName });
 }
 
 iniciarApp();
