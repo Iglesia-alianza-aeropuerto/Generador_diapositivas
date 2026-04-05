@@ -95,6 +95,55 @@
 <input type="file" id="fileInput">
 <button onclick="subirArchivo()">Subir archivo</button>
 
+<!-- 👁️ MODAL PREVIEW -->
+<div id="previewModal" style="
+  display:none;
+  position:fixed;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.85);
+  z-index:9998;
+  overflow:auto;
+  padding:30px 20px;
+  box-sizing:border-box;
+">
+  <div style="
+    max-width:860px;
+    margin:auto;
+    position:relative;
+  ">
+    <!-- Cabecera fija del modal -->
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      background:#1e293b;
+      border-radius:14px 14px 0 0;
+      padding:16px 24px;
+      position:sticky;
+      top:0;
+      z-index:10;
+      border-bottom:2px solid #334155;
+    ">
+      <h2 style="margin:0; color:#f8fafc; font-size:18px;">&#x1F3B5; Vista previa del culto</h2>
+      <button onclick="cerrarPreview()" style="
+        background:#ef4444;
+        border-radius:50%;
+        width:36px; height:36px;
+        font-size:18px;
+        padding:0;
+        flex-shrink:0;
+      ">✕</button>
+    </div>
+
+    <!-- Contenido del preview -->
+    <div id="previewContenido" style="
+      background:#0f172a;
+      border-radius:0 0 14px 14px;
+      padding:30px;
+    "></div>
+  </div>
+</div>
+
 <!-- ✏️ MODAL EDITOR TIPO WORD -->
 <div id="editorModal" style="
   display:none;
@@ -296,6 +345,109 @@ function ordenarCanciones(tipo) {
 function extraerNumero(texto) {
   let m = texto.match(/\d+/);
   return m ? parseInt(m[0]) : 9999;
+}
+
+// ════════════════════════════════
+//  PREVIEW - Vista previa del culto
+// ════════════════════════════════
+function preview() {
+  if (seleccionadas.length === 0) {
+    alert("Selecciona al menos una canción primero.");
+    return;
+  }
+
+  const contenedor = document.getElementById("previewContenido");
+  const colores = [
+    "#7c3aed", "#0891b2", "#059669", "#d97706",
+    "#db2777", "#2563eb", "#65a30d", "#9333ea"
+  ];
+
+  let html = "";
+
+  seleccionadas.forEach((idx, numeroCancion) => {
+    const cancion = canciones[idx];
+    if (!cancion) return;
+
+    const color = colores[numeroCancion % colores.length];
+
+    // Encabezado de la canción
+    html += `
+      <div style="margin-bottom:36px;">
+        <div style="
+          display:flex;
+          align-items:center;
+          gap:12px;
+          margin-bottom:16px;
+        ">
+          <div style="
+            background:${color};
+            color:white;
+            font-weight:bold;
+            font-size:13px;
+            border-radius:50%;
+            width:30px; height:30px;
+            display:flex; align-items:center; justify-content:center;
+            flex-shrink:0;
+          ">${numeroCancion + 1}</div>
+          <h3 style="
+            margin:0;
+            color:#f1f5f9;
+            font-size:20px;
+            font-family:'Georgia', serif;
+            border-bottom:2px solid ${color};
+            padding-bottom:6px;
+            flex:1;
+          ">${cancion.titulo}</h3>
+        </div>
+    `;
+
+    // Slides de la canción
+    if (cancion.slides && cancion.slides.length > 0) {
+      cancion.slides.forEach((slide, i) => {
+        html += `
+          <div style="
+            background:#1e293b;
+            border-left:4px solid ${color};
+            border-radius:0 10px 10px 0;
+            padding:16px 20px;
+            margin-bottom:10px;
+            font-family:'Georgia', serif;
+            font-size:15px;
+            line-height:1.8;
+            color:#e2e8f0;
+            white-space:pre-wrap;
+          "><span style="
+            color:${color};
+            font-size:11px;
+            font-family:sans-serif;
+            font-weight:bold;
+            display:block;
+            margin-bottom:6px;
+            text-transform:uppercase;
+            letter-spacing:1px;
+          ">Slide ${i + 1}</span>${slide}</div>
+        `;
+      });
+    } else {
+      html += `<p style="color:#64748b; font-style:italic;">Sin slides disponibles</p>`;
+    }
+
+    html += `</div>`;
+
+    // Separador entre canciones (excepto la última)
+    if (numeroCancion < seleccionadas.length - 1) {
+      html += `<hr style="border:none; border-top:1px dashed #334155; margin:10px 0 30px;">`;
+    }
+  });
+
+  contenedor.innerHTML = html;
+  document.getElementById("previewModal").style.display = "block";
+  // Scroll al inicio
+  document.getElementById("previewModal").scrollTop = 0;
+}
+
+function cerrarPreview() {
+  document.getElementById("previewModal").style.display = "none";
 }
 
 // 🔥 SUBIR CON PASSWORD + REEMPLAZO
