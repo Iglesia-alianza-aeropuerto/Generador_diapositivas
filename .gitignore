@@ -1,0 +1,5 @@
+node_modules/
+uploads/
+canciones.json
+.env
+.DS_Store

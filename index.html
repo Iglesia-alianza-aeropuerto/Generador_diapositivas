@@ -90,9 +90,20 @@
 
 <hr>
 
-<h3>Subir canción individual</h3>
+<h3>Subir/Editar canción manualmente</h3>
+<input type="hidden" id="editId" value="">
+<input type="text" id="tituloManual" placeholder="Título de la canción" style="width:80%; padding:10px; border-radius:10px; border:none; margin-bottom:10px;">
+<br>
+<textarea id="textoManual" rows="10" placeholder="Escribe o pega la letra aquí..." style="width:80%; padding:10px; border-radius:10px; border:none; font-family:Arial;"></textarea>
+<br>
+<button onclick="guardarManual()" style="background:#22c55e;">Guardar texto</button>
+<button onclick="limpiarManual()" style="background:#64748b;">Limpiar formulario</button>
+
+<hr>
+
+<h3>Subir desde archivo (PDF o PPTX)</h3>
 <input type="file" id="fileInput">
-<button onclick="subirArchivo()">Subir canción</button>
+<button onclick="subirArchivo()">Subir archivo</button>
 
 <script>
   // 🔥 PEGA AQUÍ TU IMAGEN DE PLANTILLA (FONDO DE CANCIONES)
@@ -287,7 +298,9 @@ function filtrarEliminar() {
       border-radius:10px;
     ">
       ${c.titulo}
-      <button onclick="eliminarCancion(${c.id})">Eliminar</button>
+      <br>
+      <button onclick="eliminarCancion('${c.id}')" style="background:#ef4444; margin-top:5px;">Eliminar</button>
+      <button onclick="cargarParaEditar('${c.id}')" style="background:#f59e0b; margin-top:5px;">Editar Texto</button>
     </div>
   `).join("");
 }
@@ -358,6 +371,51 @@ function generarPPT() {
 }
 
 iniciarApp();
+
+async function guardarManual() {
+  let password = document.getElementById("adminPass").value;
+  if (!password) return alert("Ingresa la contraseña de administrador");
+
+  let id = document.getElementById("editId").value;
+  let titulo = document.getElementById("tituloManual").value;
+  let texto = document.getElementById("textoManual").value;
+
+  if (!titulo || !texto) return alert("Faltan datos (título o texto)");
+
+  let url = id ? "/editar/" + id : "/upload-manual";
+  let method = id ? "PUT" : "POST";
+
+  let res = await fetch(url, {
+    method: method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password, titulo, texto })
+  });
+
+  let data = await res.json();
+  if (!res.ok) return alert(data.error);
+
+  alert(id ? "Canción actualizada con éxito" : "Canción añadida con éxito");
+  limpiarManual();
+  iniciarApp();
+}
+
+function limpiarManual() {
+  document.getElementById("editId").value = "";
+  document.getElementById("tituloManual").value = "";
+  document.getElementById("textoManual").value = "";
+}
+
+function cargarParaEditar(id) {
+  let c = canciones.find(x => x.id == id);
+  if (!c) return;
+
+  document.getElementById("editId").value = c.id;
+  document.getElementById("tituloManual").value = c.titulo;
+  document.getElementById("textoManual").value = c.slides.join("\\n");
+  
+  document.getElementById("tituloManual").focus();
+  window.scrollTo(0, document.body.scrollHeight);
+}
 
 </script>
 

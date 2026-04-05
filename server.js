@@ -1,3 +1,7 @@
+try {
+  require("dotenv").config();
+} catch (e) {}
+
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
@@ -8,32 +12,20 @@ const officeParser = require("officeparser");
 const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  process.env.SUPABASE_URL || "URL_VACIA",
+  process.env.SUPABASE_KEY || "KEY_VACIA"
 );
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-app.get("/test-db", async (req, res) => {
-  const { data, error } = await supabase.from("canciones").select("*");
+const PASSWORD = process.env.ADMIN_PASSWORD || "1234";
 
-  if (error) return res.json(error);
-
-  res.json(data);
-});
-// 🔐 CONTRASEÑA ADMIN
-const PASSWORD = "1234"; // 🔥 cámbiala
-
-
-// 📁 crear carpeta uploads si no existe
 if (!fs.existsSync("uploads")) {
   fs.mkdirSync("uploads");
 }
 
-
-// 📁 almacenamiento archivos
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
@@ -45,20 +37,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-
-// 🔥 base de datos persistente
-let cancionesDB = [];
-
-if (fs.existsSync("canciones.json")) {
-  cancionesDB = JSON.parse(fs.readFileSync("canciones.json"));
-}
-
-function guardarDB() {
-  fs.writeFileSync("canciones.json", JSON.stringify(cancionesDB, null, 2));
-}
-
-
-// 🔍 NORMALIZAR TEXTO (🔥 CLAVE)
 function normalizar(texto) {
   return texto
     .toLowerCase()
@@ -66,47 +44,38 @@ function normalizar(texto) {
     .replace(/\s+/g, " ");
 }
 
+async function processCancionEnDB(cancion, replaceExisting) {
+  const clave = normalizar(cancion.titulo);
+  
+  const { data: todas, error: errFetch } = await supabase.from("canciones").select("id, titulo");
+  if (errFetch) return "error";
 
-// 🔍 buscar por nombre
-function encontrarIndicePorTitulo(titulo) {
-  if (!titulo) return -1;
+  const existente = todas.find(c => normalizar(c.titulo) === clave);
 
-  const clave = normalizar(titulo);
-
-  return cancionesDB.findIndex(c =>
-    normalizar(c.titulo) === clave
-  );
-}
-
-
-// 🔁 lógica add/replace
-function processCancionEnDB(cancion, replaceExisting) {
-  const idx = encontrarIndicePorTitulo(cancion.titulo);
-
-  if (idx !== -1) {
+  if (existente) {
     if (replaceExisting) {
-      cancionesDB[idx] = cancion;
+      await supabase.from("canciones").update({ slides: cancion.slides }).eq("id", existente.id);
       return "replaced";
     } else {
       return "skipped";
     }
   } else {
-    cancionesDB.push(cancion);
+    await supabase.from("canciones").insert({
+      id: String(cancion.id),
+      titulo: cancion.titulo,
+      slides: cancion.slides
+    });
     return "added";
   }
 }
 
-
-// 🔥 dividir texto (PDF)
 function dividirEnSlides(texto) {
   let lineas = texto.split("\n").filter(l => l.trim() !== "");
-
   let slides = [];
   let slideActual = [];
 
   lineas.forEach(linea => {
     slideActual.push(linea);
-
     if (slideActual.length === 4) {
       slides.push(slideActual.join("\n"));
       slideActual = [];
@@ -116,215 +85,174 @@ function dividirEnSlides(texto) {
   if (slideActual.length > 0) {
     slides.push(slideActual.join("\n"));
   }
-
   return slides;
 }
 
-
-// 🔥 procesar archivo
 async function procesarArchivo(file) {
-
   const filePath = file.path;
   const nombreArchivo = file.originalname;
-
   let slides = [];
 
   try {
-
-    // 📄 PDF
     if (nombreArchivo.endsWith(".pdf")) {
-
       const dataBuffer = fs.readFileSync(filePath);
       const data = await pdfParse(dataBuffer);
-
       if (!data.text) return null;
-
       slides = dividirEnSlides(data.text);
-    }
-
-    // 📊 PPTX
-    else if (nombreArchivo.endsWith(".pptx")) {
-
+    } else if (nombreArchivo.endsWith(".pptx")) {
       let resultado;
-
       try {
         resultado = await officeParser.parseOffice(filePath);
       } catch (err) {
         console.log("⚠️ Archivo inválido:", nombreArchivo);
         return null;
       }
-
       if (resultado && resultado.content) {
-
         resultado.content.forEach(slide => {
-
           let textoSlide = "";
-
           slide.children?.forEach(parrafo => {
             if (parrafo.text && typeof parrafo.text === "string") {
               textoSlide += parrafo.text.trim() + "\n";
             }
           });
-
-          if (textoSlide.trim()) {
-            slides.push(textoSlide.trim());
-          }
-
+          if (textoSlide.trim()) slides.push(textoSlide.trim());
         });
       }
-
       if (slides.length === 0) return null;
-    }
-
-    else {
+    } else {
       return null;
     }
-
     return {
       id: Date.now() + Math.random(),
       titulo: nombreArchivo,
       slides: slides
     };
-
   } catch (error) {
     console.log("❌ Error procesando:", nombreArchivo);
     return null;
   }
 }
 
-
-//
-// 🚀 SUBIR ARCHIVOS
-//
 app.post("/upload", upload.array("archivo", 20), async (req, res) => {
   try {
-
     if (req.body.password !== PASSWORD) {
       return res.status(403).json({ error: "Acceso denegado" });
     }
-
     const replaceExisting = req.body.replace === "true";
-
     const added = [];
     const replaced = [];
     const skipped = [];
     const errors = [];
 
     for (let file of req.files) {
-
       let cancion = await procesarArchivo(file);
-
       if (cancion) {
-        const resultado = processCancionEnDB(cancion, replaceExisting);
-
+        const resultado = await processCancionEnDB(cancion, replaceExisting);
         if (resultado === "added") added.push(cancion.titulo);
         else if (resultado === "replaced") replaced.push(cancion.titulo);
         else skipped.push(cancion.titulo);
-
       } else {
         errors.push(file.originalname);
       }
-
-      fs.unlinkSync(file.path);
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
     }
-
-    guardarDB();
-
     res.json({ added, replaced, skipped, errors });
-
   } catch (error) {
     res.status(500).json({ error: "Error en subida" });
   }
 });
 
-
-//
-// 🚀 CARGA MASIVA
-//
 app.post("/upload-multiple", upload.array("archivo", 200), async (req, res) => {
   try {
-
     if (req.body.password !== PASSWORD) {
       return res.status(403).json({ error: "Acceso denegado" });
     }
-
     const replaceExisting = req.body.replace === "true";
-
     const added = [];
     const replaced = [];
     const skipped = [];
     const errors = [];
 
     for (let file of req.files) {
-
       let cancion = await procesarArchivo(file);
-
       if (cancion) {
-        const resultado = processCancionEnDB(cancion, replaceExisting);
-
+        const resultado = await processCancionEnDB(cancion, replaceExisting);
         if (resultado === "added") added.push(cancion.titulo);
         else if (resultado === "replaced") replaced.push(cancion.titulo);
         else skipped.push(cancion.titulo);
-
       } else {
         errors.push(file.originalname);
       }
-
-      fs.unlinkSync(file.path);
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
     }
-
-    guardarDB();
-
     res.json({ added, replaced, skipped, errors });
-
   } catch (error) {
     res.status(500).json({ error: "Error en carga masiva" });
   }
 });
 
+app.post("/upload-manual", async (req, res) => {
+  try {
+    const password = req.body.password || req.headers["password"];
+    if (password !== PASSWORD) return res.status(403).json({ error: "Acceso denegado" });
+    
+    const { titulo, texto } = req.body;
+    if (!titulo || !texto) return res.status(400).json({ error: "Faltan datos" });
 
-//
-// 🗑️ ELIMINAR (🔥 FIX IMPORTANTE)
-//
-app.delete("/eliminar/:id", (req, res) => {
+    const slides = dividirEnSlides(texto);
+    const cancion = { id: Date.now() + Math.random(), titulo, slides };
+    
+    const resultado = await processCancionEnDB(cancion, true);
+    
+    res.json({ resultado });
+  } catch(e) {
+    res.status(500).json({ error: "Error en subida manual" });
+  }
+});
 
+app.delete("/eliminar/:id", async (req, res) => {
   const password = req.body.password || req.headers["password"];
-
   if (password !== PASSWORD) {
     return res.status(403).json({ error: "Acceso denegado" });
   }
+  const id = String(req.params.id);
+  const { error } = await supabase.from("canciones").delete().eq("id", id);
+  if (error) return res.status(404).json({ error: "No encontrada en Supabase" });
+  res.json({ eliminada: true });
+});
 
-  const id = parseFloat(req.params.id);
-
-  const index = cancionesDB.findIndex(c => c.id == id);
-
-  if (index === -1) {
-    return res.status(404).json({ error: "No encontrada" });
+app.put("/editar/:id", async (req, res) => {
+  const password = req.body.password || req.headers["password"];
+  if (password !== PASSWORD) {
+    return res.status(403).json({ error: "Acceso denegado" });
   }
+  const id = String(req.params.id);
+  const { titulo, texto } = req.body;
+  if (!titulo || !texto) {
+      return res.status(400).json({ error: "Datos inválidos" });
+  }
+  const slides = dividirEnSlides(texto);
 
-  const eliminada = cancionesDB.splice(index, 1);
-
-  guardarDB();
-
-  res.json({ eliminada });
+  const { error } = await supabase.from("canciones").update({ titulo, slides }).eq("id", id);
+  if (error) return res.status(500).json({ error: "Error al actualizar en Supabase" });
+  res.json({ actualizada: true });
 });
 
-
-//
-// 📥 obtener canciones
-//
-app.get("/canciones", (req, res) => {
-  res.json(cancionesDB);
+app.get("/canciones", async (req, res) => {
+  const { data, error } = await supabase.from("canciones").select("*");
+  if (error) {
+    return res.status(500).json({ error: "Error de BD" });
+  }
+  res.json(data || []);
 });
 
-
-//
-// 🚀 iniciar servidor
-//
 const PORT = process.env.PORT || 3000;
-app.get("/test-db", (req, res) => {
-  res.json({ mensaje: "Servidor funcionando correctamente 🚀" });
+app.get("/test-db", async (req, res) => {
+  const { data, error } = await supabase.from("canciones").select("*");
+  if(error) return res.json(error);
+  res.json({ mensaje: "Servidor conectado correctamente", total: data.length });
 });
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });
