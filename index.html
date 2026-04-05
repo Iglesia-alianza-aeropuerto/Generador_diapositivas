@@ -203,17 +203,18 @@ let canciones = [];
 let cancionesFiltradas = [];
 let seleccionadas = [];
 
-// 🔥 FETCH ROBUSTO (SOLUCIONA RENDER)
+// 🔥 FETCH ROBUSTO (URL relativa, funciona local y en Render)
 async function cargarCancionesDesdeBackend() {
   try {
-    let res = await fetch("https://diapositivas-iglesia.onrender.com/canciones");
+    // URL relativa: funciona en local Y en Render sin hardcodear
+    let res = await fetch("/canciones?t=" + Date.now());
 
     if (!res.ok) throw new Error("Error backend");
 
     return await res.json();
 
   } catch (err) {
-    console.error("Error:", err);
+    console.error("Error cargando canciones:", err);
     return [];
   }
 }

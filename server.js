@@ -70,6 +70,15 @@ async function processCancionEnDB(cancion, replaceExisting) {
 }
 
 function dividirEnSlides(texto) {
+  // Si el texto tiene separadores "---", respetarlos (viene del editor Word)
+  if (texto.includes("---")) {
+    return texto
+      .split(/\n?---\n?/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  }
+
+  // Si no tiene separadores, partir cada 4 lineas no vacias (modo auto)
   let lineas = texto.split("\n").filter(l => l.trim() !== "");
   let slides = [];
   let slideActual = [];
