@@ -75,12 +75,12 @@
 
 <div class="container" id="songList"></div>
 
-<div style="position: sticky; bottom: 0; background: #0f172a; padding: 10px;">
-  <button onclick="generarPPT()">Generar</button>
-  <button onclick="preview()">Preview</button>
-  <button onclick="limpiarSeleccion()">Limpiar</button>
-  <button onclick="mostrarEliminar()">Eliminar</button>
-  <button onclick="abrirEditorAdmin()" style="background:#8b5cf6;">✏️ Editar canción</button>
+<div style="position: sticky; bottom: 0; background: #0f172a; padding: 10px; display:flex; gap:8px; flex-wrap:wrap;">
+  <button onclick="generarPPT()" style="background:#16a34a;">🎞️ Generar PPT</button>
+  <button onclick="preview()" style="background:#2563eb;">👁️ Preview</button>
+  <button onclick="limpiarSeleccion()" style="background:#ca8a04;">🧹 Limpiar</button>
+  <button onclick="mostrarEliminar()" style="background:#dc2626;">🗑️ Eliminar</button>
+  <button onclick="abrirEditorAdmin()" style="background:#7c3aed;">✏️ Editar canción</button>
 </div>
 
 <div id="seleccionadasUI" style="margin:10px;"></div>
@@ -175,19 +175,8 @@
 
     <h2 style="margin-top:0; color:#a78bfa;">✏️ Editor de Canciones</h2>
 
-    <!-- Password -->
-    <div id="editorPassSection">
-      <p style="color:#94a3b8;">Ingresa la contraseña de administrador para continuar:</p>
-      <input type="password" id="editorPassInput" placeholder="Contraseña admin" style="
-        padding:10px; border-radius:10px; border:none;
-        width:60%; margin-right:10px;
-        background:#0f172a; color:white;
-      ">
-      <button onclick="verificarPassEditor()" style="background:#8b5cf6;">Ingresar</button>
-    </div>
-
-    <!-- Contenido editor (oculto hasta verificar pass) -->
-    <div id="editorContenido" style="display:none;">
+    <!-- Contenido editor -->
+    <div id="editorContenido">
 
       <!-- Buscador -->
       <p style="color:#94a3b8; margin-bottom:5px;">Busca la canción a editar:</p>
@@ -630,29 +619,24 @@ let editorPassOk = false;
 let editorCancionActual = null;
 
 function abrirEditorAdmin() {
-  editorPassOk = false;
+  // Toma la contraseña del campo adminPass que ya existe en la página
+  const pass = document.getElementById("adminPass").value;
+  if (!pass) {
+    alert("Ingresa primero la contraseña de administrador en el campo de arriba.");
+    return;
+  }
+  editorPassOk = pass;
   editorCancionActual = null;
-  document.getElementById("editorPassInput").value = "";
-  document.getElementById("editorPassSection").style.display = "block";
-  document.getElementById("editorContenido").style.display = "none";
+  document.getElementById("editorContenido").style.display = "block";
+  document.getElementById("editorWordArea").style.display = "none";
+  document.getElementById("editorBuscador").value = "";
   document.getElementById("editorModal").style.display = "block";
+  filtrarEditorLista();
 }
 
 function cerrarEditor() {
   document.getElementById("editorModal").style.display = "none";
   editorCancionActual = null;
-}
-
-function verificarPassEditor() {
-  const pass = document.getElementById("editorPassInput").value;
-  if (!pass) return alert("Ingresa la contraseña");
-  // Guardamos el pass para usarlo al guardar
-  editorPassOk = pass;
-  document.getElementById("editorPassSection").style.display = "none";
-  document.getElementById("editorContenido").style.display = "block";
-  document.getElementById("editorWordArea").style.display = "none";
-  document.getElementById("editorBuscador").value = "";
-  filtrarEditorLista();
 }
 
 function filtrarEditorLista() {
@@ -702,8 +686,9 @@ function cancelarEdicionWord() {
 
 async function guardarEdicionWord() {
   if (!editorCancionActual) return;
-  const password = editorPassOk;
-  if (!password) return alert("Sesión expirada, cierra y vuelve a abrir el editor");
+  // Lee siempre la contraseña del campo principal de la página
+  const password = document.getElementById("adminPass").value || editorPassOk;
+  if (!password) return alert("Ingresa la contraseña de administrador en el campo de la página.");
 
   const textoEditado = document.getElementById("editorTextoWord").innerText;
   const titulo = editorCancionActual.titulo;
