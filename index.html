@@ -80,6 +80,7 @@
   <button onclick="preview()">Preview</button>
   <button onclick="limpiarSeleccion()">Limpiar</button>
   <button onclick="mostrarEliminar()">Eliminar</button>
+  <button onclick="abrirEditorAdmin()" style="background:#8b5cf6;">✏️ Editar canción</button>
 </div>
 
 <div id="seleccionadasUI" style="margin:10px;"></div>
@@ -90,20 +91,95 @@
 
 <hr>
 
-<h3>Subir/Editar canción manualmente</h3>
-<input type="hidden" id="editId" value="">
-<input type="text" id="tituloManual" placeholder="Título de la canción" style="width:80%; padding:10px; border-radius:10px; border:none; margin-bottom:10px;">
-<br>
-<textarea id="textoManual" rows="10" placeholder="Escribe o pega la letra aquí..." style="width:80%; padding:10px; border-radius:10px; border:none; font-family:Arial;"></textarea>
-<br>
-<button onclick="guardarManual()" style="background:#22c55e;">Guardar texto</button>
-<button onclick="limpiarManual()" style="background:#64748b;">Limpiar formulario</button>
-
-<hr>
-
 <h3>Subir desde archivo (PDF o PPTX)</h3>
 <input type="file" id="fileInput">
 <button onclick="subirArchivo()">Subir archivo</button>
+
+<!-- ✏️ MODAL EDITOR TIPO WORD -->
+<div id="editorModal" style="
+  display:none;
+  position:fixed;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.7);
+  z-index:9999;
+  overflow:auto;
+  padding:30px;
+  box-sizing:border-box;
+">
+  <div style="
+    background:#1e293b;
+    border-radius:16px;
+    max-width:850px;
+    margin:auto;
+    padding:30px;
+    position:relative;
+  ">
+    <button onclick="cerrarEditor()" style="
+      position:absolute;
+      top:15px; right:15px;
+      background:#ef4444;
+      border-radius:50%;
+      width:36px; height:36px;
+      font-size:18px;
+      padding:0;
+    ">✕</button>
+
+    <h2 style="margin-top:0; color:#a78bfa;">✏️ Editor de Canciones</h2>
+
+    <!-- Password -->
+    <div id="editorPassSection">
+      <p style="color:#94a3b8;">Ingresa la contraseña de administrador para continuar:</p>
+      <input type="password" id="editorPassInput" placeholder="Contraseña admin" style="
+        padding:10px; border-radius:10px; border:none;
+        width:60%; margin-right:10px;
+        background:#0f172a; color:white;
+      ">
+      <button onclick="verificarPassEditor()" style="background:#8b5cf6;">Ingresar</button>
+    </div>
+
+    <!-- Contenido editor (oculto hasta verificar pass) -->
+    <div id="editorContenido" style="display:none;">
+
+      <!-- Buscador -->
+      <p style="color:#94a3b8; margin-bottom:5px;">Busca la canción a editar:</p>
+      <input type="text" id="editorBuscador" placeholder="Escribe el nombre..." oninput="filtrarEditorLista()" style="
+        width:100%; padding:10px; border-radius:10px;
+        border:none; background:#0f172a; color:white;
+        margin-bottom:10px; box-sizing:border-box;
+      ">
+      <div id="editorListaCanciones" style="
+        max-height:200px; overflow-y:auto;
+        background:#0f172a; border-radius:10px;
+        margin-bottom:15px;
+      "></div>
+
+      <!-- Área tipo Word -->
+      <div id="editorWordArea" style="display:none;">
+        <p style="color:#a78bfa; font-size:14px; margin-bottom:5px;">Editando: <strong id="editorTituloLabel"></strong></p>
+        <p style="color:#64748b; font-size:12px; margin-bottom:8px;">💡 Edita la letra directamente. Usa "---" (tres guiones) en una línea nueva para separar slides.</p>
+        <div id="editorTextoWord" contenteditable="true" style="
+          background:white;
+          color:#111;
+          padding:30px;
+          border-radius:10px;
+          font-family:'Georgia', serif;
+          font-size:15px;
+          line-height:1.7;
+          min-height:350px;
+          max-height:500px;
+          overflow-y:auto;
+          outline:none;
+          white-space:pre-wrap;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        "></div>
+        <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+          <button onclick="cancelarEdicionWord()" style="background:#64748b;">Cancelar</button>
+          <button onclick="guardarEdicionWord()" style="background:#22c55e; font-size:15px; padding:12px 24px;">💾 Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
   // 🔥 PEGA AQUÍ TU IMAGEN DE PLANTILLA (FONDO DE CANCIONES)
@@ -225,16 +301,18 @@ function extraerNumero(texto) {
 async function subirArchivo() {
 
   let password = document.getElementById("adminPass").value;
-  if (!password) return alert("Ingresa contraseña");
+  if (!password) return alert("Ingresa contraseña admin");
 
   let file = document.getElementById("fileInput").files[0];
-  if (!file) return alert("Selecciona archivo");
+  if (!file) return alert("Selecciona un archivo");
 
-  const existe = canciones.some(c => c.titulo.toLowerCase() === file.name.toLowerCase());
+  const tituloArchivo = file.name.replace(/\.[^.]+$/, ""); // sin extensión
+  const existe = canciones.some(c => c.titulo.toLowerCase() === tituloArchivo.toLowerCase());
 
   let replace = false;
   if (existe) {
-    replace = confirm("Ya existe ¿Reemplazar?");
+    replace = confirm("Ya existe una canción con ese nombre. ¿Deseas reemplazarla?");
+    if (!replace) return;
   }
 
   let formData = new FormData();
@@ -242,13 +320,32 @@ async function subirArchivo() {
   formData.append("password", password);
   formData.append("replace", replace);
 
-  let res = await fetch("/upload", { method:"POST", body:formData });
-  let data = await res.json();
+  let btn = event.target;
+  btn.textContent = "⏳ Subiendo...";
+  btn.disabled = true;
 
-  if (!res.ok) return alert(data.error);
+  try {
+    let res = await fetch("/upload", { method:"POST", body:formData });
+    let data = await res.json();
 
-  alert("Proceso completado");
-  iniciarApp();
+    if (!res.ok) {
+      alert("Error: " + data.error);
+    } else {
+      const msg = [];
+      if (data.added && data.added.length) msg.push("✅ Añadida: " + data.added.join(", "));
+      if (data.replaced && data.replaced.length) msg.push("🔄 Reemplazada: " + data.replaced.join(", "));
+      if (data.skipped && data.skipped.length) msg.push("⏭️ Omitida (ya existe): " + data.skipped.join(", "));
+      if (data.errors && data.errors.length) msg.push("❌ Error en: " + data.errors.join(", "));
+      alert(msg.length ? msg.join("\n") : "✅ Proceso completado");
+      document.getElementById("fileInput").value = "";
+      await iniciarApp();
+    }
+  } catch(e) {
+    alert("Error de conexión: " + e.message);
+  } finally {
+    btn.textContent = "Subir archivo";
+    btn.disabled = false;
+  }
 }
 
 // 🔥 ELIMINAR
@@ -372,37 +469,114 @@ function generarPPT() {
 
 iniciarApp();
 
-async function guardarManual() {
-  let password = document.getElementById("adminPass").value;
-  if (!password) return alert("Ingresa la contraseña de administrador");
+// ===============================
+//  EDITOR TIPO WORD
+// ===============================
 
-  let id = document.getElementById("editId").value;
-  let titulo = document.getElementById("tituloManual").value;
-  let texto = document.getElementById("textoManual").value;
+let editorPassOk = false;
+let editorCancionActual = null;
 
-  if (!titulo || !texto) return alert("Faltan datos (título o texto)");
-
-  let url = id ? "/editar/" + id : "/upload-manual";
-  let method = id ? "PUT" : "POST";
-
-  let res = await fetch(url, {
-    method: method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password, titulo, texto })
-  });
-
-  let data = await res.json();
-  if (!res.ok) return alert(data.error);
-
-  alert(id ? "Canción actualizada con éxito" : "Canción añadida con éxito");
-  limpiarManual();
-  iniciarApp();
+function abrirEditorAdmin() {
+  editorPassOk = false;
+  editorCancionActual = null;
+  document.getElementById("editorPassInput").value = "";
+  document.getElementById("editorPassSection").style.display = "block";
+  document.getElementById("editorContenido").style.display = "none";
+  document.getElementById("editorModal").style.display = "block";
 }
 
-function limpiarManual() {
-  document.getElementById("editId").value = "";
-  document.getElementById("tituloManual").value = "";
-  document.getElementById("textoManual").value = "";
+function cerrarEditor() {
+  document.getElementById("editorModal").style.display = "none";
+  editorCancionActual = null;
+}
+
+function verificarPassEditor() {
+  const pass = document.getElementById("editorPassInput").value;
+  if (!pass) return alert("Ingresa la contraseña");
+  // Guardamos el pass para usarlo al guardar
+  editorPassOk = pass;
+  document.getElementById("editorPassSection").style.display = "none";
+  document.getElementById("editorContenido").style.display = "block";
+  document.getElementById("editorWordArea").style.display = "none";
+  document.getElementById("editorBuscador").value = "";
+  filtrarEditorLista();
+}
+
+function filtrarEditorLista() {
+  const q = document.getElementById("editorBuscador").value.toLowerCase();
+  const cont = document.getElementById("editorListaCanciones");
+  const filtradas = canciones.filter(c => c.titulo.toLowerCase().includes(q));
+
+  if (filtradas.length === 0) {
+    cont.innerHTML = "<p style='color:#64748b; padding:10px;'>No se encontraron canciones</p>";
+    return;
+  }
+
+  cont.innerHTML = filtradas.map(c => `
+    <div onclick="seleccionarCancionEditor('${c.id}')" style="
+      padding:10px 14px;
+      cursor:pointer;
+      border-bottom:1px solid #1e293b;
+      color:#e2e8f0;
+      transition:background 0.15s;
+    "
+    onmouseover="this.style.background='#334155'"
+    onmouseout="this.style.background='transparent'">
+      ${c.titulo}
+    </div>
+  `).join("");
+}
+
+function seleccionarCancionEditor(id) {
+  const c = canciones.find(x => x.id == id);
+  if (!c) return;
+  editorCancionActual = c;
+
+  document.getElementById("editorTituloLabel").textContent = c.titulo;
+  // Mostramos los slides separados por líneas con "---"
+  const textoCompleto = c.slides.join("\n---\n");
+  document.getElementById("editorTextoWord").textContent = textoCompleto;
+  document.getElementById("editorWordArea").style.display = "block";
+  document.getElementById("editorListaCanciones").innerHTML = "";
+  document.getElementById("editorBuscador").value = "";
+}
+
+function cancelarEdicionWord() {
+  editorCancionActual = null;
+  document.getElementById("editorWordArea").style.display = "none";
+  filtrarEditorLista();
+}
+
+async function guardarEdicionWord() {
+  if (!editorCancionActual) return;
+  const password = editorPassOk;
+  if (!password) return alert("Sesión expirada, cierra y vuelve a abrir el editor");
+
+  const textoEditado = document.getElementById("editorTextoWord").innerText;
+  const titulo = editorCancionActual.titulo;
+  const id = editorCancionActual.id;
+
+  if (!textoEditado.trim()) return alert("El texto no puede estar vacío");
+
+  const btn = document.querySelector("#editorWordArea button[onclick='guardarEdicionWord()']");
+  if (btn) { btn.textContent = "⏳ Guardando..."; btn.disabled = true; }
+
+  try {
+    const res = await fetch("/editar/" + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password, titulo, texto: textoEditado })
+    });
+    const data = await res.json();
+    if (!res.ok) return alert("Error: " + data.error);
+    alert("✅ Canción actualizada con éxito");
+    cerrarEditor();
+    await iniciarApp();
+  } catch(e) {
+    alert("Error de conexión: " + e.message);
+  } finally {
+    if (btn) { btn.textContent = "💾 Guardar cambios"; btn.disabled = false; }
+  }
 }
 
 function cargarParaEditar(id) {
@@ -411,7 +585,7 @@ function cargarParaEditar(id) {
 
   document.getElementById("editId").value = c.id;
   document.getElementById("tituloManual").value = c.titulo;
-  document.getElementById("textoManual").value = c.slides.join("\\n");
+  document.getElementById("textoManual").value = c.slides.join("\n");
   
   document.getElementById("tituloManual").focus();
   window.scrollTo(0, document.body.scrollHeight);
