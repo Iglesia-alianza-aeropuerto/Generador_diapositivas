@@ -19,6 +19,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 const PASSWORD = process.env.ADMIN_PASSWORD || "1234";
 
