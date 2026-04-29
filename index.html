@@ -71,7 +71,7 @@
 
 <body>
 
-  <h1>🎶 Generador de Culto <small style="font-size: 0.5em;">Versión 4.1.9</small></h1>
+  <h1>🎶 Generador de Culto <small style="font-size: 0.5em;">Versión 5.0</small></h1>
 
   <!-- 🔐 PASSWORD -->
   <input type="password" id="adminPass" class="input-box" placeholder="Contraseña admin" autocomplete="off">
@@ -636,48 +636,41 @@
       inicio.addImage({ data: intermedioFacebook, x: 0, y: 0, w: 20, h: 11.25 });
 
       seleccionadas.map(i => canciones[i]).forEach(c => {
+        
+        // 1. TÍTULO SIEMPRE APARTE
+        let slideTitulo = pptx.addSlide();
+        slideTitulo.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
+        slideTitulo.addText(c.titulo.toUpperCase(), {
+          x: 4, y: 9.0, w: 15, h: 1.8, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 50, color: "FFFFFF"
+        });
 
+        // 2. LETRAS DIVIDIDAS DE 2 EN 2
         c.slides.forEach((texto, index) => {
-
           let lineas = texto.split("\n");
-
-          // Formato Facebook: Arial Black, Blanco. Más elevado o centrado según lo extraído del PPTX
-          if (index === 0) {
-            // 1. El título ocupa toda una diapositiva solo
-            let slideTitulo = pptx.addSlide();
-            slideTitulo.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
-            slideTitulo.addText(lineas[0], {
-              x: 4, y: 9.0, w: 15, h: 1.8, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 50, color: "FFFFFF"
-            });
-
-            // 2. El resto de las líneas de la primera diapositiva se divide de 2 en 2
-            let lineasRestantes = lineas.slice(1).filter(l => l.trim() !== "");
-            for (let j = 0; j < lineasRestantes.length; j += 2) {
-              let chunk = lineasRestantes.slice(j, j + 2).join("\n");
-              let slide = pptx.addSlide();
-              slide.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
-              slide.addText(chunk, {
-                x: 4, y: 9.0, w: 15, h: 1.8, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 50, color: "FFFFFF"
-              });
-            }
-          } else {
-            // 3. Las demás diapositivas se dividen de 2 en 2 líneas
-            let lineasLimpias = lineas.filter(l => l.trim() !== "");
-            for (let j = 0; j < lineasLimpias.length; j += 2) {
-              let chunk = lineasLimpias.slice(j, j + 2).join("\n");
-              let slide = pptx.addSlide();
-              slide.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
-              slide.addText(chunk, {
-                x: 4, y: 9.0, w: 15, h: 1.8, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 50, color: "FFFFFF"
-              });
-            }
+          
+          // Si es la primera slide y la primera línea es el título, la quitamos para no repetirlo
+          if (index === 0 && lineas[0].toUpperCase() === c.titulo.toUpperCase()) {
+            lineas = lineas.slice(1);
           }
 
+          let lineasLimpias = lineas.filter(l => l.trim() !== "");
+          for (let j = 0; j < lineasLimpias.length; j += 2) {
+            let chunk = lineasLimpias.slice(j, j + 2).join("\n");
+            
+            let slide = pptx.addSlide();
+            slide.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
+            
+            // Lógica de tamaño dinámico: si es muy larga (> 55 caracteres en total), bajar a 40
+            let fSize = (chunk.length > 55) ? 40 : 50;
+
+            slide.addText(chunk, {
+              x: 4, y: 9.0, w: 15, h: 1.8, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: fSize, color: "FFFFFF"
+            });
+          }
         });
 
         let inter = pptx.addSlide();
         inter.addImage({ data: intermedioFacebook, x: 0, y: 0, w: 20, h: 11.25 });
-
       });
 
       pptx.writeFile({ fileName: fileName });
