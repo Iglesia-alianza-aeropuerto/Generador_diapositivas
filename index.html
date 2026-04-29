@@ -647,7 +647,7 @@
             let slideTitulo = pptx.addSlide();
             slideTitulo.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
             slideTitulo.addText(lineas[0], {
-              x: 1, y: 2.5, w: 18, h: 6.0, align: "center", fontFace: "Arial Black", fontSize: 70, color: "FFFFFF"
+              x: 1, y: 2.5, w: 18, h: 6.0, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 70, color: "FFFFFF"
             });
 
             // 2. El resto de las líneas de la primera diapositiva se divide de 2 en 2
@@ -657,7 +657,7 @@
               let slide = pptx.addSlide();
               slide.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
               slide.addText(chunk, {
-                x: 1, y: 2.5, w: 18, h: 6.0, align: "center", fontFace: "Arial Black", fontSize: 70, color: "FFFFFF"
+                x: 1, y: 2.5, w: 18, h: 6.0, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 70, color: "FFFFFF"
               });
             }
           } else {
@@ -668,7 +668,7 @@
               let slide = pptx.addSlide();
               slide.addImage({ data: plantillaFacebook, x: 0, y: 0, w: 20, h: 11.25 });
               slide.addText(chunk, {
-                x: 1, y: 2.5, w: 18, h: 6.0, align: "center", fontFace: "Arial Black", fontSize: 70, color: "FFFFFF"
+                x: 1, y: 2.5, w: 18, h: 6.0, align: "center", valign: "middle", fontFace: "Arial Black", fontSize: 70, color: "FFFFFF"
               });
             }
           }
