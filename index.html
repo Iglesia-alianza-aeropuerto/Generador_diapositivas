@@ -591,10 +591,10 @@
     //  ESTRUCTURA PRESENCIAL (compartida por preview y PPT)
     // ════════════════════════════════
     // Devuelve [{ tipo:"titulo"|"cuerpo", texto }] por diapositiva
-    // Normaliza para comparar títulos: sin tildes, signos, números ni mayúsculas
+    // Solo colapsa espacios: se distingue mayúsculas para no confundir
+    // el título ("CAMBIARÉ MI TRISTEZA") con la letra ("Cambiaré mi tristeza")
     function normTitulo(s) {
-      return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-        .toLowerCase().replace(/[^a-zñ ]/g, " ").replace(/\s+/g, " ").trim();
+      return String(s || "").replace(/\s+/g, " ").trim();
     }
 
     // Título de la canción = primera línea de la primera diapositiva
@@ -605,7 +605,7 @@
 
     function lineasPresencial(texto, esPrimera, titulo) {
       return texto.split("\n").map(l => l.trim()).filter(l => l !== "").map((l, i) => ({
-        tipo: (esPrimera && i === 0) || RE_TITULO.test(l) || (titulo && normTitulo(l) === titulo) ? "titulo" : "cuerpo",
+        tipo: (esPrimera && i === 0) || RE_TITULO.test(l) || (titulo && i === 0 && normTitulo(l) === titulo) ? "titulo" : "cuerpo",
         texto: l
       }));
     }
