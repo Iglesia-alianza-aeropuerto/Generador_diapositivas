@@ -266,10 +266,46 @@
 
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+    /* Barra inferior (solo celular) */
+    .mbar { display: none; }
+
     @media (max-width: 880px) {
-      main { grid-template-columns: 1fr; }
+      main { grid-template-columns: minmax(0, 1fr); margin-top: -36px; padding: 0 12px; gap: 14px; }
       .side { position: static; }
-      .song-list { max-height: 46vh; }
+      .song-list { max-height: 52vh; }
+      .hero { padding: 22px 16px 56px; }
+      .hero::after { opacity: .08; }
+      .hero p.sub { font-size: 14px; }
+      .hero-inner { align-items: stretch; }
+      .admin-pill { width: 100%; }
+      .admin-pill input { flex: 1; width: auto; }
+      .card-head { padding: 16px 16px 10px; }
+      .toolbar { padding: 0 16px 12px; }
+      .actions { padding: 14px 16px 16px; }
+      .seg { margin: 12px 16px 0; }
+      .song { padding: 12px 10px; }
+      .modal { padding: 0; }
+      .modal-box { border-radius: 0; min-height: 100%; }
+      .modal-body { padding: 16px; }
+      .pv-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      body.has-sel { padding-bottom: 84px; }
+      .mbar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+        display: flex; gap: 10px; align-items: center;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(28, 39, 62, .97); color: var(--cream);
+        transform: translateY(110%); transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+      }
+      body.has-sel .mbar { transform: none; }
+      .mbar .info { flex: 1; min-width: 0; font-size: 14px; line-height: 1.25; }
+      .mbar .info small { display: block; color: #b9b2c4; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mbar .btn { padding: 11px 14px; }
+    }
+
+    @media (max-width: 420px) {
+      .pv-grid { grid-template-columns: 1fr; }
+      .toolbar { flex-direction: column; }
+      select.input { width: 100%; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -405,6 +441,12 @@
     </div>
   </div>
 
+  <div class="mbar" aria-hidden="true">
+    <div class="info"><strong id="mbarCount">0 canciones</strong><small id="mbarNames"></small></div>
+    <button class="btn btn-ghost" style="flex:0 0 auto" onclick="document.getElementById('ordTitle').scrollIntoView({behavior:'smooth'})">Ver orden</button>
+    <button class="btn btn-primary" style="flex:0 0 auto; font-size:15px" onclick="generarPPT()">Descargar</button>
+  </div>
+
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script>
@@ -438,6 +480,16 @@
     // ── Utilidades ──
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+    }
+
+    // Arregla tildes mal guardadas ("SeÃ±or" → "Señor") y quita la extensión del archivo
+    function arreglarTexto(s) {
+      s = String(s ?? "");
+      if (/Ã.|Â./.test(s)) { try { s = decodeURIComponent(escape(s)); } catch (e) { } }
+      return s;
+    }
+    function nombreVisible(t) {
+      return arreglarTexto(t).replace(/\.(pptx|pdf)$/i, "").trim();
     }
 
     let toastTimer;
@@ -508,7 +560,7 @@
         btn.className = "song" + (pos !== -1 ? " selected" : "");
         btn.setAttribute("role", "listitem");
         btn.setAttribute("aria-pressed", pos !== -1);
-        btn.innerHTML = `<span class="check">${pos !== -1 ? pos + 1 : ""}</span><span class="t">${esc(c.titulo)}</span><span class="n">${(c.slides || []).length} diap.</span>`;
+        btn.innerHTML = `<span class="check">${pos !== -1 ? pos + 1 : ""}</span><span class="t">${esc(nombreVisible(c.titulo))}</span><span class="n">${(c.slides || []).length} diap.</span>`;
         btn.onclick = () => toggleCancion(realIndex);
         frag.appendChild(btn);
       });
@@ -541,6 +593,9 @@
       const n = seleccionadas.length;
       document.getElementById("selCount").textContent = n === 1 ? "1 canción" : `${n} canciones`;
       document.getElementById("btnGenerar").disabled = n === 0;
+      document.body.classList.toggle("has-sel", n > 0);
+      document.getElementById("mbarCount").textContent = n === 1 ? "1 canción" : `${n} canciones`;
+      document.getElementById("mbarNames").textContent = seleccionadas.map(i => nombreVisible(canciones[i]?.titulo)).join(" · ");
 
       if (n === 0) {
         cont.innerHTML = '<li class="order-empty">Toca las canciones de la lista para agregarlas aquí.</li>';
@@ -549,7 +604,7 @@
       cont.innerHTML = seleccionadas.map((i, pos) => `
         <li>
           <span class="num">${pos + 1}</span>
-          <span class="t" title="${esc(canciones[i]?.titulo)}">${esc(canciones[i]?.titulo)}</span>
+          <span class="t" title="${esc(nombreVisible(canciones[i]?.titulo))}">${esc(nombreVisible(canciones[i]?.titulo))}</span>
           <button class="icon-btn" onclick="moverSeleccion(${pos},-1)" ${pos === 0 ? "disabled" : ""} aria-label="Subir">↑</button>
           <button class="icon-btn" onclick="moverSeleccion(${pos},1)" ${pos === n - 1 ? "disabled" : ""} aria-label="Bajar">↓</button>
           <button class="icon-btn" onclick="quitarSeleccion(${pos})" aria-label="Quitar">✕</button>
@@ -566,9 +621,11 @@
     function aplicarFiltros() {
       const texto = document.getElementById("buscador").value.toLowerCase().trim();
       const tipo = document.getElementById("ordenSelect").value;
-      let copia = canciones.filter(c => (c.titulo || "").toLowerCase().includes(texto));
-      if (tipo === "az") copia.sort((a, b) => a.titulo.localeCompare(b.titulo));
-      if (tipo === "za") copia.sort((a, b) => b.titulo.localeCompare(a.titulo));
+      const sinTilde = s => nombreVisible(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const q = sinTilde(texto);
+      let copia = canciones.filter(c => sinTilde(c.titulo).includes(q));
+      if (tipo === "az") copia.sort((a, b) => nombreVisible(a.titulo).localeCompare(nombreVisible(b.titulo), "es"));
+      if (tipo === "za") copia.sort((a, b) => nombreVisible(b.titulo).localeCompare(nombreVisible(a.titulo), "es"));
       if (tipo === "numAsc") copia.sort((a, b) => extraerNumero(a.titulo) - extraerNumero(b.titulo));
       if (tipo === "numDesc") copia.sort((a, b) => extraerNumero(b.titulo) - extraerNumero(a.titulo));
       cancionesFiltradas = copia;
@@ -597,14 +654,30 @@
       return String(s || "").replace(/\s+/g, " ").trim();
     }
 
+    // Separa líneas que quedaron pegadas al importar el PPTX:
+    //  "DIOS ESTÁ EN ESTE LUGARDios está…" → título / letra
+    //  "tú debes amarPorque Jesús…"         → dos líneas
+    const MAY = "A-ZÁÉÍÓÚÜÑ", MIN = "a-záéíóúüñ";
+    const RE_TITULO_PEGADO = new RegExp(`^([^${MIN}]*[${MAY}][^${MIN}]*[${MAY}])([${MAY}][${MIN}].*)$`);
+    const RE_PEGADO = new RegExp(`([${MIN},.;!?])(?=[${MAY}¡¿])`, "g");
+
+    function partirLineas(texto) {
+      const out = [];
+      arreglarTexto(texto || "").split("\n").map(l => l.trim()).filter(l => l !== "").forEach(l => {
+        const m = l.match(RE_TITULO_PEGADO);
+        if (m && m[1].trim().includes(" ")) { out.push(m[1].trim()); l = m[2]; }
+        l.replace(RE_PEGADO, "$1\n").split("\n").forEach(x => { x = x.trim(); if (x) out.push(x); });
+      });
+      return out;
+    }
+
     // Título de la canción = primera línea de la primera diapositiva
     function tituloCancion(c) {
-      const l = ((c.slides || [])[0] || "").split("\n").find(x => x.trim() !== "");
-      return normTitulo(l);
+      return normTitulo(partirLineas((c.slides || [])[0])[0]);
     }
 
     function lineasPresencial(texto, esPrimera, titulo) {
-      return texto.split("\n").map(l => l.trim()).filter(l => l !== "").map((l, i) => ({
+      return partirLineas(texto).map((l, i) => ({
         tipo: (esPrimera && i === 0) || RE_TITULO.test(l) || (titulo && i === 0 && normTitulo(l) === titulo) ? "titulo" : "cuerpo",
         texto: l
       }));
@@ -637,7 +710,7 @@
       seleccionadas.forEach((idx, num) => {
         const cancion = canciones[idx];
         if (!cancion) return;
-        html += `<div class="pv-song"><h3><span>${num + 1}</span>${esc(cancion.titulo)}</h3>`;
+        html += `<div class="pv-song"><h3><span>${num + 1}</span>${esc(nombreVisible(cancion.titulo))}</h3>`;
 
         if (!cancion.slides || cancion.slides.length === 0) {
           html += `<p class="empty">Sin diapositivas</p></div>`;
@@ -752,7 +825,7 @@
         return;
       }
       lista.innerHTML = filtradas.map(c => `
-        <div class="row"><span>${esc(c.titulo)}</span>
+        <div class="row"><span>${esc(nombreVisible(c.titulo))}</span>
         <button class="btn btn-danger" style="padding:6px 10px" onclick="eliminarCancion('${esc(c.id)}')">Eliminar</button></div>`).join("");
     }
 
@@ -934,7 +1007,7 @@
         cont.innerHTML = "<p class='empty'>No se encontraron canciones</p>";
         return;
       }
-      cont.innerHTML = filtradas.map(c => `<div class="row" onclick="seleccionarCancionEditor('${esc(c.id)}')">${esc(c.titulo)}</div>`).join("");
+      cont.innerHTML = filtradas.map(c => `<div class="row" onclick="seleccionarCancionEditor('${esc(c.id)}')">${esc(nombreVisible(c.titulo))}</div>`).join("");
     }
 
     function seleccionarCancionEditor(id) {
