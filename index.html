@@ -684,13 +684,42 @@
     }
 
     // Reduce el tamaño si la diapositiva trae muchas líneas o líneas muy largas
-    function escalaPresencial(lineas) {
-      const n = lineas.length;
-      const maxLen = Math.max(...lineas.map(l => l.texto.length), 1);
-      let s = 1;
-      if (n > 5) s = Math.min(s, 5 / n);
-      if (maxLen > 36) s = Math.min(s, 36 / maxLen);
-      return Math.max(s, 0.6);
+    // Tamaño SIEMPRE fijo (65 títulos / 75 letra). Si la letra no cabe en el marco,
+    // la diapositiva se divide en varias en vez de achicar la letra.
+    const CAP = { filas: 7, charsCuerpo: 36, charsTitulo: 42 };
+
+    function filasDe(l) {
+      const porFila = l.tipo === "titulo" ? CAP.charsTitulo : CAP.charsCuerpo;
+      return Math.max(1, Math.ceil(l.texto.length / porFila));
+    }
+
+    // Parte una línea demasiado larga por palabras para que quepa en una diapositiva
+    function partirLarga(l) {
+      const porFila = l.tipo === "titulo" ? CAP.charsTitulo : CAP.charsCuerpo;
+      const max = porFila * (CAP.filas - 1);
+      if (l.texto.length <= max) return [l];
+      const out = []; let cur = "";
+      l.texto.split(" ").forEach(w => {
+        if ((cur + " " + w).trim().length > porFila * 2 && cur) { out.push({ ...l, texto: cur.trim() }); cur = ""; }
+        cur += " " + w;
+      });
+      if (cur.trim()) out.push({ ...l, texto: cur.trim() });
+      return out;
+    }
+
+    function paginarPresencial(lineas) {
+      const ls = lineas.flatMap(partirLarga);
+      const total = ls.reduce((a, l) => a + filasDe(l), 0);
+      if (total <= CAP.filas) return [ls];
+      const objetivo = Math.ceil(total / Math.ceil(total / CAP.filas)); // reparte parejo
+      const paginas = []; let pag = [], filas = 0;
+      ls.forEach(l => {
+        const f = filasDe(l);
+        if (pag.length && (filas + f > CAP.filas || filas >= objetivo)) { paginas.push(pag); pag = []; filas = 0; }
+        pag.push(l); filas += f;
+      });
+      if (pag.length) paginas.push(pag);
+      return paginas;
     }
 
     // ════════════════════════════════
@@ -721,10 +750,12 @@
           html += cancion.slides.map(s => `<div class="pv-plain" style="margin-bottom:8px">${esc(s)}</div>`).join("");
         } else {
           html += `<div class="pv-grid">`;
+          let nDiap = 0;
           cancion.slides.forEach((s, i) => {
-            const ls = lineasPresencial(s, i === 0, tituloCancion(cancion));
-            const k = escalaPresencial(ls);
-            html += `<div class="slide-thumb" style="background-image:url('${FONDOS_PRESENCIAL.plantilla}')"><div class="txt">${ls.map(l => `<div class="${l.tipo === "titulo" ? "b" : ""}" style="font-size:${(l.tipo === "titulo" ? 4.5 : 5.2) * k}cqw">${esc(l.texto)}</div>`).join("")}</div><span class="tag">${i + 1}</span></div>`;
+            paginarPresencial(lineasPresencial(s, i === 0, tituloCancion(cancion))).forEach(ls => {
+              nDiap++;
+              html += `<div class="slide-thumb" style="background-image:url('${FONDOS_PRESENCIAL.plantilla}')"><div class="txt">${ls.map(l => `<div class="${l.tipo === "titulo" ? "b" : ""}">${esc(l.texto)}</div>`).join("")}</div><span class="tag">${nDiap}</span></div>`;
+            });
           });
           html += `<div class="slide-thumb inter" style="background-image:url('${FONDOS_PRESENCIAL.intermedio}')"><span class="tag">Intermedio</span></div></div>`;
         }
@@ -943,10 +974,7 @@
 
       seleccionadas.map(i => canciones[i]).forEach(c => {
         (c.slides || []).forEach((texto, index) => {
-          const lineas = lineasPresencial(texto, index === 0, tituloCancion(c));
-          if (lineas.length === 0) return;
-          const k = escalaPresencial(lineas);
-
+          paginarPresencial(lineasPresencial(texto, index === 0, tituloCancion(c))).forEach(lineas => {
           let slide = pptx.addSlide();
           slide.addImage({ data: plantilla, x: 0, y: 0, w: 20, h: 11.25 });
 
@@ -954,7 +982,7 @@
             text: l.texto,
             options: {
               bold: l.tipo === "titulo",
-              fontSize: Math.round((l.tipo === "titulo" ? PRES.tituloSize : PRES.cuerpoSize) * k),
+              fontSize: l.tipo === "titulo" ? PRES.tituloSize : PRES.cuerpoSize,
               breakLine: i < lineas.length - 1
             }
           })), {
@@ -962,8 +990,8 @@
             x: 1.3, y: 0.9, w: 17.4, h: 9.45,
             align: "center", valign: "middle",
             fontFace: PRES.font, color: PRES.color,
-            lineSpacingMultiple: 0.95,
-            fit: "shrink"
+            lineSpacingMultiple: 0.95
+          });
           });
         });
 
