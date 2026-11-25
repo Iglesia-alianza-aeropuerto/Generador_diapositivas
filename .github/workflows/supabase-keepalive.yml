@@ -1,11 +1,11 @@
 # Mantiene activo el proyecto de Supabase (el plan gratis se pausa tras 7 días sin actividad).
-# Requiere los secrets SUPABASE_URL y SUPABASE_KEY en GitHub:
+# Requiere los secrets SUPABASE_URL y SUPABASE_KEY en GitHub (los mismos que usa Render):
 #   Settings → Secrets and variables → Actions → New repository secret
 name: Supabase keep-alive
 
 on:
   schedule:
-    - cron: "0 13 */2 * *"   # cada 2 días, 8:00 a. m. hora Colombia
+    - cron: "0 13 * * *"     # todos los días, 8:00 a. m. hora Colombia
   workflow_dispatch:          # botón "Run workflow" para probarlo a mano
 
 jobs:
@@ -20,6 +20,10 @@ jobs:
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
             echo "Faltan los secrets SUPABASE_URL / SUPABASE_KEY"; exit 1
           fi
+          # Muestra el código del proyecto para verificar que es el de las canciones
+          ref=$(echo "$SUPABASE_URL" | sed -E 's#^https?://([^.]+)\..*#\1#')
+          echo "Proyecto Supabase: $(echo "$ref" | sed 's/./& /g')"
+          echo "(debe ser: d x d z t o m j l n h m z n b v e t m q)"
           code=$(curl -s -o /dev/null -w "%{http_code}" \
             "$SUPABASE_URL/rest/v1/canciones?select=id&limit=1" \
             -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
