@@ -6,6 +6,7 @@ name: Supabase keep-alive
 on:
   schedule:
     - cron: "0 13 * * *"     # todos los días, 8:00 a. m. hora Colombia
+    - cron: "0 1 * * *"      # y 8:00 p. m. hora Colombia
   workflow_dispatch:          # botón "Run workflow" para probarlo a mano
 
 jobs:
@@ -24,8 +25,13 @@ jobs:
           ref=$(echo "$SUPABASE_URL" | sed -E 's#^https?://([^.]+)\..*#\1#')
           echo "Proyecto Supabase: $(echo "$ref" | sed 's/./& /g')"
           echo "(debe ser: d x d z t o m j l n h m z n b v e t m q)"
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/canciones?select=id&limit=1" \
-            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
-          echo "Supabase respondió HTTP $code"
-          [ "$code" = "200" ]
+          # Supabase no cuenta una consulta mínima como "actividad suficiente",
+          # así que simulamos un uso real: varias lecturas completas de la tabla.
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              "$SUPABASE_URL/rest/v1/canciones?select=*" \
+              -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
+            echo "Consulta $i: Supabase respondió HTTP $code"
+            [ "$code" = "200" ] || exit 1
+            sleep 20
+          done
